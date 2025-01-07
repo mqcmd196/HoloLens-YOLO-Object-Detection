@@ -88,13 +88,18 @@ namespace Assets.Scripts
                 case ModelState.PreProcessing:
                     this.inputTensor?.Dispose();
                     this.cameraTransform = new CameraTransform(Camera.main);
-
+                    
                     Graphics.Blit(WebCamTextureAccess.WebCamTexture, this.intermediateRenderTexture, this.ShaderForScaling);
                     this.inputTensor = TextureConverter.ToTensor(this.intermediateRenderTexture, this.textureTransform);
 
                     this.modelState = ModelState.Executing;
                     break;
                 case ModelState.Executing:
+                    float[] tensorData = this.inputTensor.ToReadOnlyArray();
+                    // TODO
+                    // 1. to detic_ros
+                    // 2. get detection result
+                    // 3. show in unity
                     this.modelEnumerator ??= this.worker.StartManualSchedule(this.inputTensor);
 
                     int i = 0;
