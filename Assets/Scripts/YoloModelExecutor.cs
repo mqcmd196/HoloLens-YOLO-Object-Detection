@@ -2,8 +2,10 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
+using Unity.Robotics.ROSTCPConnector;
 using Unity.Sentis;
 using UnityEngine;
+using compressedImageMsg = RosMessageTypes.Sensor.CompressedImageMsg;
 
 namespace Assets.Scripts
 {
@@ -54,6 +56,8 @@ namespace Assets.Scripts
 
         private static SettingsProvider SettingsProvider => SettingsProvider.Instance;
 
+        private ROSConnection rosConnection;
+
         private void Start()
         {
             // Get other components
@@ -74,9 +78,13 @@ namespace Assets.Scripts
             // Initialize model input
             WebCamTextureAccess.Play();
             this.intermediateRenderTexture = new RenderTexture(Parameters.ModelImageResolution.x, Parameters.ModelImageResolution.y, 24);
-            this.ShaderForScaling.SetFloat("_Aspect",
-                (float)WebCamTextureAccess.ActualCameraSize.x / WebCamTextureAccess.ActualCameraSize.y * Parameters.ModelImageResolution.y / Parameters.ModelImageResolution.x);
-            this.textureTransform = new TextureTransform().SetDimensions(Parameters.ModelImageResolution.x, Parameters.ModelImageResolution.y, 3);
+            // this.ShaderForScaling.SetFloat("_Aspect",
+            //     (float)WebCamTextureAccess.ActualCameraSize.x / WebCamTextureAccess.ActualCameraSize.y * Parameters.ModelImageResolution.y / Parameters.ModelImageResolution.x);
+            // this.textureTransform = new TextureTransform().SetDimensions(Parameters.ModelImageResolution.x, Parameters.ModelImageResolution.y, 3);
+
+            // Initialize ROS
+            rosConnection = ROSConnection.instance;
+            rosConnection.RegisterPublisher<compressedImageMsg>("ar/compressed_image");
         }
 
         private void Update()
@@ -88,14 +96,23 @@ namespace Assets.Scripts
                 case ModelState.PreProcessing:
                     this.inputTensor?.Dispose();
                     this.cameraTransform = new CameraTransform(Camera.main);
-                    
                     Graphics.Blit(WebCamTextureAccess.WebCamTexture, this.intermediateRenderTexture, this.ShaderForScaling);
-                    this.inputTensor = TextureConverter.ToTensor(this.intermediateRenderTexture, this.textureTransform);
-
+                    RenderTexture.active = this.intermediateRenderTexture;
+                    Texture2D texture2D = new Texture2D(this.intermediateRenderTexture.width, this.intermediateRenderTexture.height, TextureFormat.RGB24, false);
+                    texture2D.ReadPixels(new Rect(0, 0, this.intermediateRenderTexture.width, this.intermediateRenderTexture.height), 0, 0);
+                    texture2D.Apply();
+                    RenderTexture.active = null;
+                    // this.inputTensor = TextureConverter.ToTensor(this.intermediateRenderTexture, this.textureTransform);
                     this.modelState = ModelState.Executing;
+                    byte[] jpegData = texture2D.EncodeToJPG();
                     break;
                 case ModelState.Executing:
-                    float[] tensorData = this.inputTensor.ToReadOnlyArray();
+                    compressedImageMsg rosImageData = new compressedImageMsg
+                    {
+                        format = "jpeg",
+                        data = jpegData
+                    };
+
                     // TODO
                     // 1. to detic_ros
                     // 2. get detection result
