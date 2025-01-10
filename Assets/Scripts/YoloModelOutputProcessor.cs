@@ -47,7 +47,7 @@ namespace Assets.Scripts
                 Vector2 center = new(tensor[0, 0, boxIndex], tensor[0, 1, boxIndex]);
                 Vector2 size = new(tensor[0, 2, boxIndex], tensor[0, 3, boxIndex]);
                 int maxIndex = classProbabilities.IndexOf(confidence);
-                boxesMeetingConfidenceLevel.Add(YoloItem.FromVersion8(center, size, confidence, maxIndex));
+                boxesMeetingConfidenceLevel.Add(YoloItem.FromVersion8(center, size, confidence, maxIndex, "dummyClass"));
             }
 
             return boxesMeetingConfidenceLevel;
@@ -68,7 +68,7 @@ namespace Assets.Scripts
                 Vector2 topLeft = new(tensor[0, boxIndex, 0], tensor[0, boxIndex, 1]);
                 Vector2 bottomRight = new(tensor[0, boxIndex, 2], tensor[0, boxIndex, 3]);
                 int classIndex = (int)tensor[0, boxIndex, 5];
-                boxesMeetingConfidenceLevel.Add(YoloItem.FromVersion10(topLeft, bottomRight, confidence, classIndex));
+                boxesMeetingConfidenceLevel.Add(YoloItem.FromVersion10(topLeft, bottomRight, confidence, classIndex, "dummyClass"));
             }
             return boxesMeetingConfidenceLevel;
         }
