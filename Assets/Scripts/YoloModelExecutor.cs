@@ -6,8 +6,8 @@ using Unity.Robotics.ROSTCPConnector;
 using Unity.Sentis;
 using UnityEngine;
 using CompressedImageMsg = RosMessageTypes.Sensor.CompressedImageMsg;
-using ImageMsg = RosMessageTypes.Sensor.ImageMsg;
 using SegmentationInfoMsg = RosMessageTypes.DeticRos.SegmentationInfoMsg;
+using UnityEngine.UI;
 
 namespace Assets.Scripts
 {
@@ -70,6 +70,8 @@ namespace Assets.Scripts
 
         private byte[] jpegData = null;
 
+        [SerializeField] private RawImage debugRawImage;
+
         private void Start()
         {
             // Get other components
@@ -91,28 +93,35 @@ namespace Assets.Scripts
 
             // Initialize model input
             WebCamTextureAccess.Play();
-            this.intermediateRenderTexture =
-                new RenderTexture(Parameters.ModelImageResolution.x, Parameters.ModelImageResolution.y, 24);
+            // this.intermediateRenderTexture =
+            //     new RenderTexture(Parameters.ModelImageResolution.x, Parameters.ModelImageResolution.y, 24);
+            this.intermediateRenderTexture = new RenderTexture(WebCamTextureAccess.ActualCameraSize.x, WebCamTextureAccess.ActualCameraSize.y, 24);
             // this.ShaderForScaling.SetFloat("_Aspect",
             //     (float)WebCamTextureAccess.ActualCameraSize.x / WebCamTextureAccess.ActualCameraSize.y * Parameters.ModelImageResolution.y / Parameters.ModelImageResolution.x);
             // this.textureTransform = new TextureTransform().SetDimensions(Parameters.ModelImageResolution.x, Parameters.ModelImageResolution.y, 3);
 
             // Initialize ROS
-            rosConnection = ROSConnection.instance;
-            rosConnection.RegisterPublisher<CompressedImageMsg>("ar/compressed_image");
+            rosConnection = ROSConnection.GetOrCreateInstance();
+            rosConnection.RosIPAddress = "133.11.216.96";
+            rosConnection.RosPort = 10000;
+            rosConnection.RegisterPublisher<CompressedImageMsg>("ar/image/compressed");
             rosConnection.Subscribe<SegmentationInfoMsg>("ar/segmentation_info", Callback);
         }
 
         private void Update()
         {
             this.cameraTransform = new CameraTransform(Camera.main);
-            Graphics.Blit(WebCamTextureAccess.WebCamTexture, this.intermediateRenderTexture, this.ShaderForScaling);
+            // Graphics.Blit(WebCamTextureAccess.WebCamTexture, this.intermediateRenderTexture, this.ShaderForScaling);
+            Graphics.Blit(WebCamTextureAccess.WebCamTexture, this.intermediateRenderTexture);
             RenderTexture.active = this.intermediateRenderTexture;
             Texture2D texture2D = new Texture2D(this.intermediateRenderTexture.width,
                 this.intermediateRenderTexture.height, TextureFormat.RGB24, false);
             texture2D.ReadPixels(
                 new Rect(0, 0, this.intermediateRenderTexture.width, this.intermediateRenderTexture.height), 0, 0);
             texture2D.Apply();
+
+            ShowCapturedTexture(texture2D);
+
             RenderTexture.active = null;
             jpegData = texture2D.EncodeToJPG();
             CompressedImageMsg rosImageData = new CompressedImageMsg
@@ -120,7 +129,7 @@ namespace Assets.Scripts
                 format = "jpeg",
                 data = jpegData,
             };
-            rosConnection.Send("ar/compressed_image", rosImageData);
+            rosConnection.Send("ar/image/compressed", rosImageData);
 
             // Check subscription
 
@@ -173,6 +182,14 @@ namespace Assets.Scripts
             //     default:
             //         throw new ArgumentOutOfRangeException();
             // }
+        }
+
+        private void ShowCapturedTexture(Texture2D tex)
+        {
+            if (debugRawImage != null)
+            {
+                debugRawImage.texture = tex;
+            }
         }
 
         private void Callback(SegmentationInfoMsg msg)
