@@ -53,6 +53,29 @@ namespace Assets.Scripts
             return yoloItem;
         }
 
+        public static YoloItem FromPixels(
+            Vector2 topLeftPixels,
+            Vector2 bottomRightPixels,
+            float confidence,
+            int classIndex,
+            string className
+            ) {
+                // お好みで、Width, Height などを保持してもいい
+                return new YoloItem
+                {
+                    // ここでは "ピクセル" で受け取った値を格納
+                    TopLeft = topLeftPixels,
+                    BottomRight = bottomRightPixels,
+                    Confidence = confidence,
+                    MostLikelyClass = (ObjectClass)classIndex,
+                    MostLikelyClassName = className,
+
+                    // Center, Size もピクセル座標で計算
+                    Size = bottomRightPixels - topLeftPixels,
+                    Center = topLeftPixels + (bottomRightPixels - topLeftPixels) / 2f
+                };
+            }
+
         /// <summary>
         ///     Center position of the recognized object.
         /// </summary>

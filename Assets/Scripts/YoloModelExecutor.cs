@@ -54,6 +54,8 @@ namespace Assets.Scripts
 
         private YoloRecognitionHandler yoloRecognitionHandler;
 
+        private LayerMask layerMask;
+
         private static WebCamTextureAccess WebCamTextureAccess => WebCamTextureAccess.Instance;
 
         private static SettingsProvider SettingsProvider => SettingsProvider.Instance;
@@ -102,8 +104,7 @@ namespace Assets.Scripts
 
             // Initialize ROS
             rosConnection = ROSConnection.GetOrCreateInstance();
-            rosConnection.RosIPAddress = "192.168.2.145";
-            // rosConnection.RosIPAddress = "127.0.0.1";
+            rosConnection.RosIPAddress = "133.11.216.96";
             rosConnection.RosPort = 10000;
             rosConnection.RegisterPublisher<CompressedImageMsg>("ar/image/compressed");
             rosConnection.Subscribe<SegmentationInfoMsg>("/docker/detic_segmentor/segmentation_info", Callback);
@@ -132,57 +133,7 @@ namespace Assets.Scripts
             };
             rosConnection.Send("ar/image/compressed", rosImageData);
 
-            // Check subscription
 
-            // switch (this.modelState)
-            // {
-            //     case ModelState.Idle:
-            //         break;
-            //     case ModelState.PreProcessing:
-            //         this.inputTensor?.Dispose();
-            //         this.cameraTransform = new CameraTransform(Camera.main);
-            //         Graphics.Blit(WebCamTextureAccess.WebCamTexture, this.intermediateRenderTexture,
-            //             this.ShaderForScaling);
-            //         RenderTexture.active = this.intermediateRenderTexture;
-            //         Texture2D texture2D = new Texture2D(this.intermediateRenderTexture.width,
-            //             this.intermediateRenderTexture.height, TextureFormat.RGB24, false);
-            //         texture2D.ReadPixels(
-            //             new Rect(0, 0, this.intermediateRenderTexture.width, this.intermediateRenderTexture.height), 0,
-            //             0);
-            //         texture2D.Apply();
-            //         RenderTexture.active = null;
-            //         // this.inputTensor = TextureConverter.ToTensor(this.intermediateRenderTexture, this.textureTransform);
-            //         this.modelState = ModelState.Executing;
-            //         jpegData = texture2D.EncodeToJPG();
-            //         break;
-            //     case ModelState.Executing:
-            //         compressedImageMsg rosImageData = new compressedImageMsg
-            //         {
-            //             format = "jpeg",
-            //             data = jpegData,
-            //         };
-            //         this.modelState = ModelState.ReadOutput;
-            //         // TODO
-            //         // 2. get detection result
-            //         // 3. show in unity
-            //         rosConnection.Send("ar/compressed_image", rosImageData);
-            //         break;
-            //     case ModelState.ReadOutput:
-            //         this.outputTensor = (TensorFloat)this.worker.PeekOutput();
-            //         this.modelState = ModelState.Idle;
-            //         this.outputTensor.AsyncReadbackRequest(_ => this.modelState = ModelState.PostProcessing);
-            //         break;
-            //     case ModelState.PostProcessing:
-            //         this.outputTensor.MakeReadable();
-            //         List<YoloItem> result =
-            //             YoloModelOutputProcessor.ProcessModelOutput(this.outputTensor, this.threshold);
-            //         this.yoloDebugOutput.ShowDebugInformation(this.inputTensor, result, this.cameraTransform);
-            //         yoloRecognitionHandler.ShowRecognitions(result, this.cameraTransform);
-            //         this.modelState = ModelState.PreProcessing;
-            //         break;
-            //     default:
-            //         throw new ArgumentOutOfRangeException();
-            // }
         }
 
         private void ShowCapturedTexture(Texture2D tex)
@@ -255,20 +206,11 @@ namespace Assets.Scripts
                 string className = msg.detected_classes[idxInMsg];
                 float score = msg.scores[idxInMsg];
 
-                // セグメンテーションの場合、(x, y) そのままだとトップレフト等の座標計算が
-                // YOLO の座標系と異なることが多いので、必要に応じて正規化 (0〜1) するなど調整
-                // ここでは単純に幅・高さからスケーリングする例
-
-                float xMinNorm = box.minX / (float)width;
-                float yMinNorm = box.minY / (float)height;
-                float xMaxNorm = box.maxX / (float)width;
-                float yMaxNorm = box.maxY / (float)height;
-
                 // YoloItem 風の書き方(Version10 例)
                 // ※ 実際の YoloItem 実装と座標系が合うように注意
                 var newItem = YoloItem.FromVersion10(
-                    topLeft: new Vector2(xMinNorm, yMinNorm),
-                    bottomRight: new Vector2(xMaxNorm, yMaxNorm),
+                    topLeft: new Vector2(box.minX, box.minY),
+                    bottomRight: new Vector2(box.maxX, box.maxY),
                     confidence: score,
                     classIndex: (int)classId, // ObjectClass 変換が必要な場合は適宜
                     className: className
@@ -278,6 +220,43 @@ namespace Assets.Scripts
                 // ↑ YoloItem の実装に合わせてクラス名を保持できるようにする
 
                 deticItems.Add(newItem);
+            }
+
+
+            for (int i = 0; i < deticItems.Count; i++)
+            {
+                YoloItem item = deticItems[i];
+
+                // BBox 中心 (ピクセル座標)
+                float centerX = item.Center.x;
+                float centerY = item.Center.y;
+
+                // UnityのScreen座標は 左下(0,0)
+                // 画像は 左上(0,0) の可能性が高いため、Yを反転
+                float flippedY = Screen.height - centerY;
+
+                // もし Hololens のレンダリング解像度(Screen.height) と
+                // 受信画像(height) が違うなら、スケーリングが必要になる
+                // 例: float scaleX = Screen.width / (float)width;
+                //     float scaleY = Screen.height / (float)height;
+                //     float finalX = centerX * scaleX;
+                //     float finalY = Screen.height - (centerY * scaleY);
+
+                Vector3 screenPos = new Vector3(centerX, flippedY, 0f);
+
+                Ray ray = Camera.main.ScreenPointToRay(screenPos);
+
+                // Raycast: 空間メッシュなどにヒットすれば3D位置が得られる
+                if (Physics.Raycast(ray, out RaycastHit hit, 5f, layerMask))
+                {
+                    // hit.point が実世界の衝突位置
+                    Vector3 worldPos = hit.point;
+
+                    // ラベル配置などに使うなら、YoloItemに保持させたり、
+                    // あるいは DisplayedItem に変換してHololens空間に配置する
+                    // item.ThreeDPosition = worldPos; (構造体なので注意)
+                    // もしくは yoloRecognitionHandler.ShowLabel(...) に直接渡す
+                }
             }
 
             // 4) 生成したリストをもとにデバッグ表示 / ハンドラー呼び出し
