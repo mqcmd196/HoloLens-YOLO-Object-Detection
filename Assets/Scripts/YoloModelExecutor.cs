@@ -102,10 +102,11 @@ namespace Assets.Scripts
 
             // Initialize ROS
             rosConnection = ROSConnection.GetOrCreateInstance();
-            rosConnection.RosIPAddress = "133.11.216.96";
+            rosConnection.RosIPAddress = "192.168.2.145";
+            // rosConnection.RosIPAddress = "127.0.0.1";
             rosConnection.RosPort = 10000;
             rosConnection.RegisterPublisher<CompressedImageMsg>("ar/image/compressed");
-            rosConnection.Subscribe<SegmentationInfoMsg>("ar/segmentation_info", Callback);
+            rosConnection.Subscribe<SegmentationInfoMsg>("/docker/detic_segmentor/segmentation_info", Callback);
         }
 
         private void Update()
@@ -282,7 +283,7 @@ namespace Assets.Scripts
             // 4) 生成したリストをもとにデバッグ表示 / ハンドラー呼び出し
             //    カメラ画像と合成して 2D Overlay したいなら、YoloDebugOutput.ShowDebugInformation
             //    HoloLens の空間上に配置したい場合は、ワールド座標に変換して配置など
-            yoloDebugOutput.ShowDebugInformation(null, deticItems, cameraTransform);
+            // yoloDebugOutput.ShowDebugInformation(null, deticItems, cameraTransform);
             yoloRecognitionHandler.ShowRecognitions(deticItems, cameraTransform);
 
         }
