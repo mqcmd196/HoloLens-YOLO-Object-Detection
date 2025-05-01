@@ -15,7 +15,7 @@ namespace Assets.Scripts
         /// <param name="size">Size of the recognized object.</param>
         /// <param name="confidence">Confidence of most likely class.</param>
         /// <param name="classIndex">Index of most likely class.</param>
-        public static YoloItem FromVersion8(Vector2 center, Vector2 size, float confidence, int classIndex)
+        public static YoloItem FromVersion8(Vector2 center, Vector2 size, float confidence, int classIndex, string className)
         {
             return new YoloItem
             {
@@ -24,7 +24,8 @@ namespace Assets.Scripts
                 Confidence = confidence,
                 MostLikelyClass = (ObjectClass)classIndex,
                 TopLeft = center - size / 2,
-                BottomRight = center + size / 2
+                BottomRight = center + size / 2,
+                MostLikelyClassName = className
             };
         }
 
@@ -36,7 +37,7 @@ namespace Assets.Scripts
         /// <param name="bottomRight">Bottom right position of the recognized object.</param>
         /// <param name="confidence">Confidence of most likely class.</param>
         /// <param name="classIndex">Index of most likely class.</param>
-        public static YoloItem FromVersion10(Vector2 topLeft, Vector2 bottomRight, float confidence, int classIndex)
+        public static YoloItem FromVersion10(Vector2 topLeft, Vector2 bottomRight, float confidence, int classIndex, string className)
         {
             YoloItem yoloItem = new()
             {
@@ -44,12 +45,36 @@ namespace Assets.Scripts
                 BottomRight = bottomRight,
                 Size = bottomRight - topLeft,
                 Confidence = confidence,
-                MostLikelyClass = (ObjectClass)classIndex
+                MostLikelyClass = (ObjectClass)classIndex,
+                MostLikelyClassName = className
             };
             yoloItem.Center = topLeft + yoloItem.Size / 2;
 
             return yoloItem;
         }
+
+        public static YoloItem FromPixels(
+            Vector2 topLeftPixels,
+            Vector2 bottomRightPixels,
+            float confidence,
+            int classIndex,
+            string className
+            ) {
+                // お好みで、Width, Height などを保持してもいい
+                return new YoloItem
+                {
+                    // ここでは "ピクセル" で受け取った値を格納
+                    TopLeft = topLeftPixels,
+                    BottomRight = bottomRightPixels,
+                    Confidence = confidence,
+                    MostLikelyClass = (ObjectClass)classIndex,
+                    MostLikelyClassName = className,
+
+                    // Center, Size もピクセル座標で計算
+                    Size = bottomRightPixels - topLeftPixels,
+                    Center = topLeftPixels + (bottomRightPixels - topLeftPixels) / 2f
+                };
+            }
 
         /// <summary>
         ///     Center position of the recognized object.
@@ -80,5 +105,7 @@ namespace Assets.Scripts
         ///     Name of the most likely class for this object.
         /// </summary>
         public ObjectClass MostLikelyClass { get; private set; }
+
+        public string MostLikelyClassName { get; private set; }
     }
 }

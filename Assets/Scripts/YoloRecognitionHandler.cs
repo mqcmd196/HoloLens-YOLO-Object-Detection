@@ -153,7 +153,8 @@ namespace Assets.Scripts
             }
 
             ObjectLabelController labelController = item.TrackingMarker.GetComponent<ObjectLabelController>();
-            labelController.Text = $"{item.YoloItem.MostLikelyClass} ({Math.Round(item.YoloItem.Confidence * 100, 3)}%)";
+            // labelController.Text = $"{item.YoloItem.MostLikelyClass} ({Math.Round(item.YoloItem.Confidence * 100, 3)}%)";
+            labelController.Text = $"{item.YoloItem.MostLikelyClassName} ({Math.Round(item.YoloItem.Confidence * 100, 3)}%)";
             labelController.UpdatePosition(item.PositionInSpace);
    
         }

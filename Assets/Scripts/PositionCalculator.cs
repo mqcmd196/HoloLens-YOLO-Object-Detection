@@ -9,6 +9,9 @@ namespace Assets.Scripts
     {
         private static WebCamTextureAccess WebCamTextureAccess => WebCamTextureAccess.Instance;
 
+        private const float RaycastMaxDistance = 5f;
+        private static readonly LayerMask SpatialMeshLayerMask = 1 << 31;
+
         /// <summary>
         ///     Calculates the center or bottom point position of the yolo object in world space.
         /// </summary>
@@ -17,9 +20,18 @@ namespace Assets.Scripts
         /// <returns>Position in world space.</returns>
         public static Vector3? CalculatePointInSpace(YoloItem yoloItem, CameraTransform cameraTransform)
         {
-            Vector2 positionInImage = ScaleBack(new Vector2(yoloItem.Center.x, yoloItem.Center.y));
-            Vector3 positionInSpace = GetPositionInSpace(cameraTransform, positionInImage);
-            return CastOnSpatialMap(positionInSpace, cameraTransform);
+            float centerX = yoloItem.Center.x;
+            float centerY = yoloItem.Center.y;
+            float flippedY = Screen.height - centerY;
+
+            Vector3 screenPos = new Vector3(centerX, flippedY, 0f);
+
+            Ray ray = Camera.main.ScreenPointToRay(screenPos);
+            if (Physics.Raycast(ray, out RaycastHit hitInfo, RaycastMaxDistance, SpatialMeshLayerMask))
+            {
+                return hitInfo.point; // 実空間での衝突点
+            }
+            return null;
         }
 
         /// <summary>
@@ -30,15 +42,35 @@ namespace Assets.Scripts
         /// <returns>The four corner points.</returns>
         public static Vector3[] CalculateCornerPoints(YoloItem yoloItem, CameraTransform cameraTransform)
         {
-            Vector3[] cornerPoints = new Vector3[4];
-            int i = 0;
-            Vector2 topRight = yoloItem.TopLeft + new Vector2(yoloItem.Size.x, 0);
-            Vector2 bottomLeft = yoloItem.BottomRight - new Vector2(yoloItem.Size.x, 0);
-            foreach (Vector2 cornerPoint in new[] { yoloItem.TopLeft, topRight, yoloItem.BottomRight, bottomLeft })
+            Vector2 topRight = new Vector2(yoloItem.BottomRight.x, yoloItem.TopLeft.y);
+            Vector2 bottomLeft = new Vector2(yoloItem.TopLeft.x, yoloItem.BottomRight.y);
+
+            Vector2[] corners = new[]
             {
-                Vector2 scaled = ScaleBack(cornerPoint);
-                Vector3 posInSpace = GetPositionInSpace(cameraTransform, scaled);
-                cornerPoints[i++] = posInSpace;
+                yoloItem.TopLeft,
+                topRight,
+                yoloItem.BottomRight,
+                bottomLeft
+            };
+
+            Vector3[] cornerPoints = new Vector3[4];
+
+            for (int i = 0; i < 4; i++)
+            {
+                float x = corners[i].x;
+                float y = corners[i].y;
+                float flippedY = Screen.height - y;
+                // スケーリングがいるならここで適用
+
+                Ray ray = Camera.main.ScreenPointToRay(new Vector3(x, flippedY, 0f));
+                if (Physics.Raycast(ray, out RaycastHit hit, RaycastMaxDistance, SpatialMeshLayerMask))
+                {
+                    cornerPoints[i] = hit.point;
+                }
+                else
+                {
+                    cornerPoints[i] = Vector3.zero; // or Vector3.negativeInfinity
+                }
             }
 
             return cornerPoints;
@@ -95,7 +127,9 @@ namespace Assets.Scripts
         public static bool IsObjectInCameraView(Vector3 position)
         {
             Vector3 viewPos = Camera.main.WorldToViewportPoint(position);
-            return viewPos.x is <= 1f and >= 0f && viewPos.y is <= 1 and >= 0 && viewPos.z >= 0;
+            return (viewPos.x >= 0f && viewPos.x <= 1f) &&
+                   (viewPos.y >= 0f && viewPos.y <= 1f) &&
+                   viewPos.z >= 0f;
         }
     }
 }
